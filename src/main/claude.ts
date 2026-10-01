@@ -12,14 +12,15 @@
 //   * in "readonly" mode those tools are simply not available.
 
 import { spawn, execFile, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, delimiter, join } from "node:path";
+import { basename, join } from "node:path";
 import { hookCommand } from "./hooks";
 import { emit } from "./island";
+import { IS_WIN, findProgram, widenedPath } from "./platform";
 import { dataDir, log, type Settings } from "./store";
 
-const SYSTEM_PROMPT = `You are Poupou, a small assistant living in a notch-sized panel at the top of the user's Windows screen. Replies are shown in a narrow chat bubble that renders plain text only.
+const SYSTEM_PROMPT = `You are Poupou, a small assistant living in a notch-sized panel at the top of the user's screen. Replies are shown in a narrow chat bubble that renders plain text only.
 
 Be direct and brief: answer first, a few short lines at most unless the task truly needs more. Reply in the user's language. No markdown at all — no **, no #, no backticks, no tables, no bullet dashes. Use plain sentences and line breaks.
 
@@ -45,22 +46,7 @@ let stopped = false;
 
 // ── Finding and launching the CLI ─────────────────────────────────────────────
 
-/** Our own `where`: walks %PATH%, then the places the installers use. */
-export function findClaude(): string | null {
-  const names = ["claude.exe", "claude.cmd"];
-  const dirs = [
-    ...(process.env.PATH ?? "").split(delimiter).filter(Boolean),
-    join(homedir(), ".local", "bin"),
-    join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "npm"),
-  ];
-  for (const dir of dirs) {
-    for (const name of names) {
-      const candidate = join(dir, name);
-      if (existsSync(candidate)) return candidate;
-    }
-  }
-  return null;
-}
+export const findClaude = () => findProgram(IS_WIN ? ["claude.exe", "claude.cmd"] : ["claude"]);
 
 /**
  * The environment the CLI runs in. Two things are removed on purpose:
@@ -75,6 +61,10 @@ function childEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
     else if (key.startsWith("CLAUDE_CODE_") && key !== "CLAUDE_CODE_OAUTH_TOKEN") delete env[key];
     else if (key === "ANTHROPIC_API_KEY" || key === "ANTHROPIC_AUTH_TOKEN") delete env[key];
   }
+  // The CLI starts things of its own (the hook relay needs `node`), and an app
+  // launched from the Dock or the Start menu has a much shorter PATH than a terminal.
+  const pathKey = Object.keys(env).find((k) => k.toUpperCase() === "PATH") ?? "PATH";
+  env[pathKey] = widenedPath();
   return { ...env, ...extra };
 }
 
@@ -303,7 +293,7 @@ export function chatStop() {
   if (!running) return;
   stopped = true;
   // /T takes the hook relay and any tool the turn started down with it.
-  if (running.pid) execFile("taskkill", ["/pid", String(running.pid), "/T", "/F"], () => {});
+  if (IS_WIN && running.pid) execFile("taskkill", ["/pid", String(running.pid), "/T", "/F"], () => {});
   else running.kill();
 }
 

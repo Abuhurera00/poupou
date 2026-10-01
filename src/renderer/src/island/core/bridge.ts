@@ -40,6 +40,8 @@ export interface BootInfo {
   settings: Settings;
   version: string;
   hookPath: string;
+  /** False under `npm run dev`, where the app cannot register itself to start at login. */
+  packaged: boolean;
 }
 
 export const Bridge = {

@@ -16,6 +16,8 @@ export interface Settings {
   model: string;
   chatCwd: string;
   chatAccess: ChatAccess;
+  /** Start with the computer (built app only). */
+  autostart: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -27,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   model: "",
   chatCwd: "",
   chatAccess: "ask",
+  autostart: false,
 };
 
 export const dataDir = () => app.getPath("userData");

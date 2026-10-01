@@ -67,6 +67,8 @@ export interface Settings {
   chatCwd: string;
   /** "ask": tools that change things need a click. "readonly": they are refused. */
   chatAccess: ChatAccess;
+  /** Start with the computer (built app only). */
+  autostart: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -78,6 +80,7 @@ export const DEFAULT_SETTINGS: Settings = {
   model: "",
   chatCwd: "",
   chatAccess: "ask",
+  autostart: false,
 };
 
 type Listener = () => void;

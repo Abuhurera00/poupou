@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // poupou-hook — the relay Claude Code runs on every hook event.
 //
-// Reads the hook JSON on stdin and hands it to Poupou over the named pipe
-// `\\.\pipe\poupou-<user>`. Plain Node, no dependencies, so it starts fast and
+// Reads the hook JSON on stdin and hands it to Poupou over a named pipe
+// (`\\.\pipe\poupou-<user>`) on Windows or a socket file (~/.poupou.sock)
+// elsewhere. Plain Node, no dependencies, so it starts fast and
 // can be copied anywhere.
 //
 // Hard rule: never block Claude Code.
@@ -18,6 +19,8 @@
 "use strict";
 
 const net = require("net");
+const os = require("os");
+const path = require("path");
 
 /** Budget for getting a pipe connection. Beyond this Claude Code wins, always. */
 const CONNECT_TIMEOUT = 300;
@@ -45,8 +48,10 @@ const chatGate = arg === "ChatGate";
 if (inChat && !chatGate) process.exit(0);
 if (chatGate && !inChat) process.exit(0);
 
+/** Must match relayPath() in src/main/platform.ts exactly. */
 function pipePath() {
-  const user = (process.env.USERNAME || process.env.USER || "user").replace(/[^A-Za-z0-9_.-]/g, "_");
+  if (process.platform !== "win32") return path.join(os.homedir(), ".poupou.sock");
+  const user = (process.env.USERNAME || os.userInfo().username || "user").replace(/[^A-Za-z0-9_.-]/g, "_");
   return `\\\\.\\pipe\\poupou-${user}`;
 }
 

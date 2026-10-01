@@ -11,6 +11,7 @@ import {
   setScreenPref,
 } from "./island";
 import { acknowledge, answer, decline, startPipe, stopPipe } from "./pipe";
+import { IS_MAC, IS_WIN, findProgram } from "./platform";
 import { hookScriptPath, loadSettings, log, saveSettings, type Settings } from "./store";
 import { buildTray, drawIcon } from "./tray";
 
@@ -66,11 +67,11 @@ function showSettingsWindow() {
 // ── Opening things ────────────────────────────────────────────────────────────
 
 /**
- * Finds VS Code's own executable. `code` on PATH is a .cmd shim, and running
- * that means cmd.exe reading `&`, `^` and `%` in a folder name as syntax; the
- * exe takes the folder as a plain argument instead.
+ * Finds VS Code's own executable on Windows. `code` on PATH is a .cmd shim, and
+ * running that means cmd.exe reading `&`, `^` and `%` in a folder name as
+ * syntax; the exe takes the folder as a plain argument instead.
  */
-function findVSCode(): string | null {
+function findVSCodeExe(): string | null {
   const candidates: string[] = [];
   for (const dir of (process.env.PATH ?? "").split(delimiter)) {
     if (dir && existsSync(join(dir, "code.cmd"))) candidates.push(join(dir, "..", "Code.exe"));
@@ -82,15 +83,30 @@ function findVSCode(): string | null {
   return candidates.find((c) => existsSync(c)) ?? null;
 }
 
+/** How to start VS Code here: the program and the arguments before the folder. */
+function vsCodeLauncher(): [string, string[]] | null {
+  if (IS_WIN) {
+    const exe = findVSCodeExe();
+    return exe ? [exe, []] : null;
+  }
+  // macOS finds the app by name wherever it is installed.
+  if (IS_MAC) return ["/usr/bin/open", ["-a", "Visual Studio Code"]];
+  const code = findProgram(["code"]);
+  return code ? [code, []] : null;
+}
+
 function openInVSCode(path: string | null): boolean {
-  const code = findVSCode();
-  if (code) {
+  const launcher = vsCodeLauncher();
+  if (launcher) {
+    const [program, args] = launcher;
     // VS Code is itself an Electron app: a leftover ELECTRON_RUN_AS_NODE from
     // our own environment would make it start as plain Node.
     const env = { ...process.env };
     delete env.ELECTRON_RUN_AS_NODE;
     try {
-      spawn(code, path ? [path] : [], { detached: true, stdio: "ignore", env }).unref();
+      const child = spawn(program, path ? [...args, path] : args, { detached: true, stdio: "ignore", env });
+      child.on("error", (err) => log(`could not start VS Code: ${String(err)}`));
+      child.unref();
       return true;
     } catch (err) {
       log(`could not start VS Code: ${String(err)}`);
@@ -98,6 +114,12 @@ function openInVSCode(path: string | null): boolean {
   }
   if (path) void shell.openPath(path);
   return false;
+}
+
+/** Start with the computer. Only a built app can register itself; `npm run dev` cannot. */
+function applyAutostart(on: boolean) {
+  if (!app.isPackaged) return;
+  app.setLoginItemSettings({ openAtLogin: on });
 }
 
 // ── Commands ──────────────────────────────────────────────────────────────────
@@ -109,12 +131,13 @@ const commands: Record<string, (args: Args) => unknown> = {
   boot: () => {
     // The real state of ~/.claude/settings.json wins over whatever we stored.
     settings.hooksInstalled = hooksStatus().installed;
-    return { settings, version: app.getVersion(), hookPath: hookScriptPath() };
+    return { settings, version: app.getVersion(), hookPath: hookScriptPath(), packaged: app.isPackaged };
   },
 
   save_settings: (a) => {
     const next = { ...settings, ...(a.settings as Partial<Settings>) };
     const workspaceChanged = next.chatCwd !== settings.chatCwd;
+    if (next.autostart !== settings.autostart) applyAutostart(next.autostart);
     settings = next;
     saveSettings(settings);
     setScreenPref(settings.screen);
@@ -197,6 +220,8 @@ if (!app.requestSingleInstanceLock()) {
 
   void app.whenReady().then(() => {
     app.setAppUserModelId("dev.poupou.app");
+    // The island and the menu-bar icon are the whole app: no Dock icon on a Mac.
+    if (IS_MAC) app.dock?.hide();
     settings = loadSettings();
     log(`--- Poupou ${app.getVersion()} started ---`);
 

@@ -45,7 +45,7 @@ function sample(u: number, v: number): RGB | null {
   return [0, 1, 2].map((i) => SKIN_TOP[i] + (SKIN_BOTTOM[i] - SKIN_TOP[i]) * k) as RGB;
 }
 
-export function drawIcon(size: number): NativeImage {
+export function drawIcon(size: number, scaleFactor = 1): NativeImage {
   const SS = 4; // supersampling, for smooth edges
   const buf = Buffer.alloc(size * size * 4);
   for (let py = 0; py < size; py++) {
@@ -73,11 +73,12 @@ export function drawIcon(size: number): NativeImage {
       buf[i + 3] = Math.round((255 * hits) / total);
     }
   }
-  return nativeImage.createFromBitmap(buf, { width: size, height: size });
+  return nativeImage.createFromBitmap(buf, { width: size, height: size, scaleFactor });
 }
 
 export function buildTray(actions: TrayActions) {
-  tray = new Tray(drawIcon(32));
+  // The macOS menu bar wants an 18-point icon; drawn at 2× it stays sharp on Retina.
+  tray = new Tray(process.platform === "darwin" ? drawIcon(36, 2) : drawIcon(32));
   tray.setToolTip("Poupou");
   let paused = false;
 

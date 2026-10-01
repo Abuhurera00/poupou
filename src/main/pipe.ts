@@ -1,6 +1,7 @@
 // Named-pipe server for poupou-hook.
 //
-// `\\.\pipe\poupou-<user>` — one connection per hook event. Every event is
+// A named pipe on Windows (`\\.\pipe\poupou-<user>`), a socket file in the home
+// folder elsewhere — one connection per hook event. Every event is
 // forwarded to the island as a `hook` event. A permission request is the only
 // one that keeps its connection open: it waits for the island's decision and
 // writes it back on the same pipe, which is how approving from the island works.
@@ -16,8 +17,9 @@
 // exactly one place.
 
 import { createServer, type Server, type Socket } from "node:net";
-import { userInfo } from "node:os";
+import { chmodSync, rmSync } from "node:fs";
 import { emit } from "./island";
+import { IS_WIN, relayPath } from "./platform";
 import { log } from "./store";
 
 /** Slightly under poupou-hook's own 110 s wait, so we always answer first. */
@@ -35,22 +37,24 @@ const pending = new Map<string, Pending>();
 let counter = 1;
 let server: Server | null = null;
 
-/** Must match `pipePath()` in resources/poupou-hook.cjs exactly. */
-export function pipeName(): string {
-  const user = (process.env.USERNAME || userInfo().username || "user").replace(/[^A-Za-z0-9_.-]/g, "_");
-  return `\\\\.\\pipe\\poupou-${user}`;
-}
-
 export function startPipe() {
   server = createServer(handle);
   server.on("error", (err) => log(`relay pipe error: ${String(err)}`));
-  server.listen(pipeName(), () => log(`relay pipe listening on ${pipeName()}`));
+  const path = relayPath();
+  // A socket file outlives a crash; a named pipe does not.
+  if (!IS_WIN) rmSync(path, { force: true });
+  server.listen(path, () => {
+    // Our own account only: this socket decides what Claude Code may run.
+    if (!IS_WIN) chmodSync(path, 0o600);
+    log(`relay listening on ${path}`);
+  });
 }
 
 export function stopPipe() {
   for (const id of [...pending.keys()]) finish(id, null);
   server?.close();
   server = null;
+  if (!IS_WIN) rmSync(relayPath(), { force: true });
 }
 
 function handle(socket: Socket) {

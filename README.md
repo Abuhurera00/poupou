@@ -1,29 +1,61 @@
 # Poupou
 
-A notch companion for Windows. Poupou, a small ghost with an antenna, lives at the top-centre of your
-screen, follows your Claude Code sessions, lets you approve permission requests
-from there, and chats with Claude **through the Claude subscription your
-`claude` CLI is already signed in with** — no API key.
+A notch companion for Windows and macOS. Poupou, a small ghost with an antenna,
+lives at the top-centre of your screen, follows your Claude Code sessions, lets
+you approve permission requests from there, and chats with Claude **through the
+Claude subscription your `claude` CLI is already signed in with** — no API key.
 
-## Run it
+## Install it as an app
 
-Requirements: Node 20+, and Claude Code installed and signed in (`claude`, then
-`/login`).
+You need [Node 20+](https://nodejs.org) and Claude Code installed and signed in
+(run `claude`, then `/login`). Then:
 
-```powershell
+```
+git clone https://github.com/Abuhurera00/poupou.git
+cd poupou
+npm install
+npm run dist
+```
+
+`npm run dist` builds the installer for the computer you run it on and puts it
+in `dist/`.
+
+**Windows** — run `distPoupou Setup 0.1.0.exe`. It installs for your account
+only (no admin prompt), adds Poupou to the Start menu and the desktop, and
+starts it. From then on, press the Windows key, type `Poupou`, Enter. Windows
+may show a "Windows protected your PC" box because the installer is not signed:
+**More info → Run anyway**.
+
+**macOS** — open `dist/Poupou-0.1.0.dmg` (`-arm64` on Apple Silicon) and drag
+Poupou to Applications. The app is not signed by Apple, so the first launch is
+refused; allow it once with
+
+```
+xattr -cr /Applications/Poupou.app
+```
+
+and open it from Spotlight or Launchpad. The Mac build has to be made on a Mac —
+a Windows PC cannot produce it. The Mac side is written but has **not been run
+on a Mac yet**; if the island does not sit right against the top of the screen
+or over the menu bar, that is the place to look (`src/main/island.ts`).
+
+There is no taskbar or Dock window. The island is at the top of the screen and
+there is an icon in the notification area / menu bar (Open, Ask Claude,
+Settings…, Pause, Quit). **Settings → Start with the computer** makes it launch
+at login.
+
+To update: `git pull`, `npm install`, `npm run dist`, run the new installer.
+To remove: uninstall "Poupou" from Windows Settings → Apps, or delete it from
+Applications on a Mac.
+
+## Run it from the code
+
+```
 npm install
 npm run dev        # live-reloading
 ```
 
-or, without the dev server:
-
-```powershell
-npm run build
-npm start
-```
-
-There is no taskbar window. The island is at the top of the screen and there is
-an icon in the notification area (Open, Ask Claude, Settings…, Pause, Quit).
+Quit the installed app first — only one Poupou runs at a time.
 
 ## Using it
 
@@ -75,11 +107,14 @@ src/renderer/
   src/island/             the island (TypeScript + Canvas 2D, no framework)
   src/settings/           the settings window (React + Tailwind + shadcn/ui)
   src/components/ui/      shadcn components
+  platform.ts             the Windows / macOS differences
 resources/poupou-hook.cjs the relay Claude Code runs on each hook event
 scripts/gen-sounds.mjs    synthesises the 28 sounds (npm run sounds)
+scripts/gen-icon.mjs      draws build/icon.png, the app icon (npm run icon)
 ```
 
-Settings and the log live in `%APPDATA%\poupou\` (`settings.json`, `poupou.log`).
+Settings and the log (`settings.json`, `poupou.log`) live in `%APPDATA%\Poupou\`
+on Windows and `~/Library/Application Support/Poupou/` on a Mac.
 
 ## Sounds
 
@@ -87,7 +122,6 @@ The sounds are synthesised by `scripts/gen-sounds.mjs` — sine "mallet" notes a
 filtered noise, all in D major pentatonic so overlapping sounds never clash. To
 retune one, edit its line in the script and run `npm run sounds`.
 
-## Licences
+## Licence
 
-Third-party code this app includes is listed in `THIRD-PARTY-NOTICES.txt`. That
-file has to ship with every copy of the app.
+MIT — see `LICENSE`. Copyright (c) 2026 Abuhurera00.

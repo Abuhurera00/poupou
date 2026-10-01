@@ -5,9 +5,10 @@
 // only after an explicit click. Uninstall removes Poupou's entries and nothing
 // else.
 //
-// The command is `node` plus the quoted script path in forward slashes and the
-// event name: on Windows Claude Code runs hook commands through Git Bash, and
-// anything with backslashes, PowerShell or cmd syntax in it breaks.
+// The command is node plus the quoted script path, both in forward slashes, and
+// the event name: on Windows Claude Code runs hook commands through Git Bash,
+// and anything with backslashes, PowerShell or cmd syntax in it breaks. The same
+// line works unchanged in sh on macOS and Linux.
 
 import { app } from "electron";
 import {
@@ -15,6 +16,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { findNode } from "./platform";
 import { hookScriptPath, log } from "./store";
 
 /**
@@ -61,7 +63,11 @@ export const claudeSettingsPath = () => join(homedir(), ".claude", "settings.jso
 
 /** The hook command for one event, as it is written into settings.json. */
 export function hookCommand(event: string): string {
-  return `node "${hookScriptPath().replace(/\\/g, "/")}" ${event}`;
+  // The full path to node when we can find it: a hook must not depend on what
+  // PATH happens to look like in the process that runs it.
+  const node = findNode();
+  const runner = node ? `"${node.replace(/\\/g, "/")}"` : "node";
+  return `${runner} "${hookScriptPath().replace(/\\/g, "/")}" ${event}`;
 }
 
 const isObject = (v: unknown): v is Json => v != null && typeof v === "object" && !Array.isArray(v);

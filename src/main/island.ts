@@ -7,6 +7,7 @@
 
 import { BrowserWindow, screen } from "electron";
 import { join } from "node:path";
+import { IS_MAC } from "./platform";
 
 /** Logical size of the full window — the largest island view. */
 const PANEL_W = 720;
@@ -117,6 +118,8 @@ export function createIslandWindow(pref: "primary" | "cursor"): BrowserWindow {
     // Never steals focus from what you are doing; the chat field asks for it.
     focusable: false,
     title: "Poupou",
+    // A panel may sit above the menu bar and over full-screen apps on a Mac.
+    ...(IS_MAC ? { type: "panel" as const, enableLargerThanScreen: true } : {}),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       // The island keeps animating while another app has the foreground.
@@ -124,6 +127,7 @@ export function createIslandWindow(pref: "primary" | "cursor"): BrowserWindow {
     },
   });
   win.setMenu(null);
+  if (IS_MAC) win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
   // Starts at full size so the launch greeting has room.
   collapsed = false;

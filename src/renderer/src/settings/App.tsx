@@ -54,6 +54,7 @@ function Row({
 export function App() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [version, setVersion] = useState("");
+  const [packaged, setPackaged] = useState(true);
   const [claude, setClaude] = useState<ClaudeStatus | null>(null);
   const [checking, setChecking] = useState(false);
   const [hooks, setHooks] = useState<HookStatus | null>(null);
@@ -71,6 +72,7 @@ export function App() {
       if (!boot) return;
       setSettings({ ...DEFAULT_SETTINGS, ...boot.settings });
       setVersion(boot.version);
+      setPackaged(boot.packaged);
     });
     void refreshClaude();
     void refreshHooks();
@@ -293,6 +295,18 @@ export function App() {
                   ))}
                 </SelectContent>
               </Select>
+            </Row>
+            <Row
+              label="Start with the computer"
+              hint={packaged ? undefined : "Available in the installed app, not under npm run dev."}
+              htmlFor="autostart"
+            >
+              <Switch
+                id="autostart"
+                disabled={!packaged}
+                checked={settings.autostart}
+                onCheckedChange={(v) => update({ autostart: v })}
+              />
             </Row>
             <Row label="Display" htmlFor="screen">
               <Select value={settings.screen} onValueChange={(v) => update({ screen: v as Settings["screen"] })}>
