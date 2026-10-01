@@ -20,7 +20,7 @@ npm run dist
 `npm run dist` builds the installer for the computer you run it on and puts it
 in `dist/`.
 
-**Windows** — run `distPoupou Setup 0.1.0.exe`. It installs for your account
+**Windows** — run `dist/Poupou Setup 0.1.0.exe`. It installs for your account
 only (no admin prompt), adds Poupou to the Start menu and the desktop, and
 starts it. From then on, press the Windows key, type `Poupou`, Enter. Windows
 may show a "Windows protected your PC" box because the installer is not signed:
