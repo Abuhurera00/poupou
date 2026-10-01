@@ -1,0 +1,76 @@
+// Entry point: boot the bridge, wire the island, start the greeting.
+
+import "./style.css";
+import { Bridge, IS_NATIVE, onEvent } from "./core/bridge";
+import { Sound } from "./core/sound";
+import { State, type Settings } from "./core/state";
+import { Island } from "./island/island";
+import { registerHookHandlers } from "./island/hooks";
+
+async function main() {
+  const root = document.getElementById("root");
+  if (!root) return;
+
+  void Sound.preload();
+
+  const island = new Island(root);
+
+  const boot = await Bridge.boot();
+  if (boot) {
+    State.settings = { ...State.settings, ...boot.settings };
+  }
+  island.applySettings();
+  State.loadTasks();
+
+  onEvent<{ x: number; y: number }>("cursor", ({ x, y }) => island.onCursor(x, y));
+
+  const setPaused = (on: boolean) => {
+    if (State.paused === on) return;
+    State.paused = on;
+    void Bridge.setPaused(on);
+  };
+
+  onEvent<string>("tray", (what) => {
+    switch (what) {
+      case "open":
+        setPaused(false);
+        island.alert(State.defaultView());
+        break;
+      case "chat":
+        setPaused(false);
+        island.alert("prompt");
+        break;
+      case "pause":
+        setPaused(!State.paused);
+        if (State.paused) island.fsm.forceHidden();
+        else island.reveal();
+        break;
+    }
+  });
+
+  onEvent<null>("screen-changed", () => void Bridge.reposition());
+
+  // The settings window writes preferences; apply them here without a restart.
+  onEvent<Settings>("settings-changed", (s) => {
+    State.settings = { ...State.settings, ...s };
+    island.applySettings();
+  });
+
+  registerHookHandlers(island);
+
+  // The chat needs the CLI; knowing early lets the field say so instead of failing.
+  void Bridge.claudeStatus().then((status) => {
+    if (!status) return;
+    State.claudeReady = status.found && status.loggedIn;
+    State.notify();
+  });
+
+  island.launch();
+
+  // In a plain browser nothing unlocks audio for us: wait for the first click.
+  if (!IS_NATIVE) {
+    document.addEventListener("click", () => Sound.resume(), { once: true });
+  }
+}
+
+void main();
