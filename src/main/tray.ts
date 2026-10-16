@@ -6,6 +6,7 @@ import { Menu, Tray, app, nativeImage, type NativeImage } from "electron";
 export interface TrayActions {
   open(): void;
   chat(): void;
+  voice(): void;
   settings(): void;
   pause(): void;
 }
@@ -87,6 +88,7 @@ export function buildTray(actions: TrayActions) {
       Menu.buildFromTemplate([
         { label: "Open", click: actions.open },
         { label: "Ask Claude", click: actions.chat },
+        { label: "Talk to Claude", accelerator: "CommandOrControl+Shift+Space", click: actions.voice },
         { label: "Settings…", click: actions.settings },
         { type: "separator" },
         {

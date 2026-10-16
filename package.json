@@ -14,6 +14,7 @@
     "icon": "node scripts/gen-icon.mjs"
   },
   "devDependencies": {
+    "@huggingface/transformers": "^4.3.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.6.3",
     "@types/react": "^19.3.0",
@@ -74,7 +75,8 @@
       "icon": "build/icon.png",
       "category": "public.app-category.developer-tools",
       "extendInfo": {
-        "LSUIElement": true
+        "LSUIElement": true,
+        "NSMicrophoneUsageDescription": "Poupou listens only while you dictate a message, and turns your voice into text on this Mac."
       }
     },
     "linux": {

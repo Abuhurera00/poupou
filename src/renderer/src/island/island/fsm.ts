@@ -18,6 +18,11 @@ export class IslandStateMachine {
   greetHoverCollapseDelay = 10;
   /** An alert waiting for an answer stays open, even when the mouse leaves. */
   pinned = false;
+  /**
+   * Asked when the auto-close timer runs out: while it says yes (a reply is
+   * coming in, the user is dictating) the island stays open and checks again.
+   */
+  holdOpen: (() => boolean) | null = null;
 
   private petitHide: number | null = null;
   private homeCollapse: number | null = null;
@@ -117,7 +122,9 @@ export class IslandStateMachine {
     if (this.pinned) return;
     this.homeCollapse = window.setTimeout(() => {
       this.homeCollapse = null;
-      if (this.state === "home") this.transition("petit");
+      if (this.state !== "home") return;
+      if (this.holdOpen?.()) this.scheduleHomeCollapse();
+      else this.transition("petit");
     }, this.homeToPetitDelay * 1000);
   }
 

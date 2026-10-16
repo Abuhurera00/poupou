@@ -1417,3 +1417,49 @@ input[type="range"]::-webkit-slider-thumb {
 .chat-log::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* ── Voice input ────────────────────────────────────────────────────────── */
+
+.mic-btn {
+  --level: 0;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--dim);
+  display: grid;
+  place-items: center;
+  cursor: default;
+  transition: background 0.15s, color 0.15s, box-shadow 0.08s linear;
+}
+
+.mic-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--ink);
+}
+
+/* Recording: red, with a ring that swells with your voice. */
+.mic-btn.rec {
+  background: var(--red);
+  color: #fff;
+  box-shadow: 0 0 0 calc(2px + var(--level) * 7px) rgba(244, 80, 94, 0.28);
+}
+
+.mic-btn.busy {
+  animation: mic-busy 1s ease-in-out infinite;
+}
+
+.mic-btn:disabled {
+  opacity: 0.45;
+}
+
+@keyframes mic-busy {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.chat-input.note::placeholder {
+  color: var(--red-text);
+}

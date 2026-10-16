@@ -7,6 +7,31 @@ import { Bridge, onEvent, type ChatContext, type ChatDelta } from "../core/bridg
 import { Sound } from "../core/sound";
 import { State, type ChatMessage } from "../core/state";
 import type { ViewHost } from "./views";
+import { MAX_SECONDS, record, setProgressListener, transcribe, warm, type Recording } from "../voice/voice";
+
+/** Set by the chat view once it exists; the hotkey and the tray call it. */
+let voiceToggle: (() => void) | null = null;
+
+/** Start dictating, or stop and transcribe if already listening. */
+export function toggleVoice() {
+  voiceToggle?.();
+}
+
+/** Whisper needs a little audio to work with; anything shorter is a stray click. */
+const MIN_SAMPLES = 16000 * 0.4;
+
+/** What went wrong with the microphone, in words a person can act on. */
+function micProblem(err: unknown): string {
+  const name = err instanceof DOMException ? err.name : "";
+  if (name === "NotAllowedError" || name === "SecurityError") {
+    return "Microphone blocked — allow it in your system's privacy settings.";
+  }
+  if (name === "NotFoundError" || name === "OverconstrainedError") return "No microphone found.";
+  if (name === "NotReadableError") return "The microphone is busy in another app.";
+  const text = String(err instanceof Error ? err.message : err);
+  if (/fetch|network|load/i.test(text)) return "Couldn't download the voice model — check the connection.";
+  return `Voice input failed: ${text.slice(0, 80)}`;
+}
 
 let nextId = 1;
 
@@ -47,8 +72,9 @@ export function buildPrompt(onHeightChange: () => void): ViewHost {
     spellcheck: "false",
   }) as HTMLInputElement;
   const fresh = h("button", { class: "chat-new", title: "New chat" }, svg(ICONS.plus, 11));
+  const mic = h("button", { class: "mic-btn", title: "Speak (Ctrl+Shift+Space)" }, svg(ICONS.mic, 12));
   const send = h("button", { class: "send-btn", title: "Send" }, svg(ICONS.arrowUp, 11));
-  const bar = h("div", { class: "chat-bar" }, fresh, input, send);
+  const bar = h("div", { class: "chat-bar" }, fresh, input, mic, send);
 
   const el = h(
     "div",
@@ -65,6 +91,121 @@ export function buildPrompt(onHeightChange: () => void): ViewHost {
   const streamed = (): ChatMessage | null => stream.message;
   let renderedKey = "";
   let sendIcon = "";
+
+  // ── Voice ───────────────────────────────────────────────────────────────────
+  let voice: "idle" | "recording" | "transcribing" = "idle";
+  let recording: Recording | null = null;
+  let recordStart = 0;
+  let meter: number | null = null;
+  /** Model download progress (0…1) on first use, null otherwise. */
+  let download: number | null = null;
+  /** A short message shown in the field, e.g. "No microphone found." */
+  let voiceNote: string | null = null;
+  let voiceNoteTimer: number | null = null;
+  let micIcon = "";
+
+  setProgressListener((fraction) => {
+    download = fraction;
+    State.notify();
+  });
+
+  const note = (text: string) => {
+    voiceNote = text;
+    if (voiceNoteTimer != null) window.clearTimeout(voiceNoteTimer);
+    voiceNoteTimer = window.setTimeout(() => {
+      voiceNote = null;
+      State.notify();
+    }, 4500);
+    State.notify();
+  };
+
+  const endVoice = () => {
+    voice = "idle";
+    State.voiceBusy = false;
+    recording = null;
+    if (meter != null) window.clearInterval(meter);
+    meter = null;
+    mic.style.setProperty("--level", "0");
+    if (!sending && State.stateOverride !== "approval") State.stateOverride = null;
+    State.notify();
+  };
+
+  async function startVoice() {
+    if (sending || voice !== "idle") return;
+    voiceNote = null;
+    try {
+      if ((await Bridge.micAccess()) === false) throw new DOMException("denied", "NotAllowedError");
+      recording = await record();
+    } catch (err) {
+      Sound.play("error");
+      note(micProblem(err));
+      return;
+    }
+    // Fetch the model while the user is still talking.
+    warm(State.settings.voiceModel);
+    voice = "recording";
+    State.voiceBusy = true;
+    recordStart = performance.now();
+    State.stateOverride = "searching";
+    Sound.play("peek");
+    meter = window.setInterval(() => {
+      mic.style.setProperty("--level", (recording?.level() ?? 0).toFixed(2));
+      if ((performance.now() - recordStart) / 1000 >= MAX_SECONDS) void stopVoice();
+      State.notify(); // the elapsed time in the placeholder
+    }, 120);
+    State.notify();
+  }
+
+  async function stopVoice() {
+    if (voice !== "recording" || !recording) return;
+    const rec = recording;
+    if (meter != null) window.clearInterval(meter);
+    meter = null;
+    mic.style.setProperty("--level", "0");
+    voice = "transcribing";
+    State.stateOverride = "thinking";
+    Sound.play("blip");
+    State.notify();
+    try {
+      const audio = await rec.stop();
+      if (audio.length < MIN_SAMPLES) {
+        endVoice();
+        note("Didn't catch that — hold on a bit longer.");
+        return;
+      }
+      const s = State.settings;
+      const text = await transcribe(audio, s.voiceModel, s.voiceLanguage);
+      endVoice();
+      if (!text) {
+        note("Didn't catch any words.");
+        return;
+      }
+      input.value = input.value.trim() ? `${input.value.trim()} ${text}` : text;
+      Sound.play("pop");
+      if (State.settings.voiceAutoSend) {
+        void submit();
+      } else {
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    } catch (err) {
+      endVoice();
+      Sound.play("error");
+      note(micProblem(err));
+    }
+  }
+
+  function cancelVoice() {
+    recording?.cancel();
+    endVoice();
+  }
+
+  voiceToggle = () => {
+    if (voice === "recording") void stopVoice();
+    else if (voice === "idle") void startVoice();
+  };
+
+  mic.addEventListener("click", () => voiceToggle?.());
 
   void onEvent<ChatDelta>("chat-delta", (delta) => {
     if (!sending) return;
@@ -144,6 +285,12 @@ export function buildPrompt(onHeightChange: () => void): ViewHost {
     input.focus();
   });
   input.addEventListener("keydown", (e) => {
+    if ((e as KeyboardEvent).key === "Escape" && voice === "recording") {
+      e.preventDefault();
+      e.stopPropagation();
+      cancelVoice();
+      return;
+    }
     if ((e as KeyboardEvent).key === "Enter") {
       e.preventDefault();
       void submit();
@@ -192,11 +339,32 @@ export function buildPrompt(onHeightChange: () => void): ViewHost {
       }
       fresh.style.display = history.length > 0 && !sending ? "" : "none";
 
-      input.placeholder =
-        State.claudeReady === false
+      const micGlyph = voice === "recording" ? ICONS.stop : ICONS.mic;
+      if (micGlyph !== micIcon) {
+        micIcon = micGlyph;
+        clear(mic);
+        mic.append(svg(micGlyph, voice === "recording" ? 10 : 12));
+      }
+      mic.classList.toggle("rec", voice === "recording");
+      mic.classList.toggle("busy", voice === "transcribing");
+      mic.disabled = sending || voice === "transcribing";
+      mic.title = voice === "recording" ? "Stop and transcribe" : "Speak (Ctrl+Shift+Space)";
+
+      const secs = Math.floor((performance.now() - recordStart) / 1000);
+      const clock = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+      input.placeholder = voiceNote
+        ? voiceNote
+        : voice === "transcribing" && download != null
+          ? `Getting the voice model… ${Math.round(download * 100)}% (first time only)`
+          : voice === "recording"
+            ? `Listening… ${clock} — click ■ to stop, Esc to cancel`
+            : voice === "transcribing"
+              ? "Writing it down…"
+              : State.claudeReady === false
           ? "Claude CLI not signed in — see Settings…"
           : history.length === 0 ? "Ask me anything…" : "Continue…";
-      input.disabled = sending;
+      input.disabled = sending || voice !== "idle";
+      input.classList.toggle("note", voiceNote != null);
     },
     focus() {
       input.focus();

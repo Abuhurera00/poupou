@@ -69,6 +69,12 @@ export interface Settings {
   chatAccess: ChatAccess;
   /** Start with the computer (built app only). */
   autostart: boolean;
+  /** Speech model size: bigger hears better and downloads more. */
+  voiceModel: "tiny" | "base" | "small";
+  /** Spoken language as a Whisper code ("en", "ur"…); empty = detect it. */
+  voiceLanguage: string;
+  /** Send the message as soon as it is transcribed, instead of waiting for Enter. */
+  voiceAutoSend: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -81,6 +87,9 @@ export const DEFAULT_SETTINGS: Settings = {
   chatCwd: "",
   chatAccess: "ask",
   autostart: false,
+  voiceModel: "base",
+  voiceLanguage: "",
+  voiceAutoSend: false,
 };
 
 type Listener = () => void;
@@ -114,6 +123,13 @@ class AppState {
   chatStep: string | null = null;
   /** True from the moment a message is sent until its reply is complete. */
   chatBusy = false;
+  /** True while dictating or transcribing. */
+  voiceBusy = false;
+
+  /** Something the user is in the middle of: the island must not close on them. */
+  get busy(): boolean {
+    return this.chatBusy || this.voiceBusy;
+  }
   pendingApproval: ApprovalInfo | null = null;
 
   /** Whether the `claude` CLI is installed and logged in; null until checked. */

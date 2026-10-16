@@ -64,6 +64,7 @@ Quit the installed app first — only one Poupou runs at a time.
 | Move the pointer to the very top-centre of the screen | the island peeks out |
 | Click the small island | it opens |
 | Click the chat tab, type, Enter | Claude answers, streamed, on your subscription |
+| `Ctrl+Shift+Space` anywhere, talk, press it again | your words are typed into the chat |
 | Ask it to run a command or edit a file | an **Allow / Deny** card appears first |
 | Drag a file onto the island | it swallows the file, then offers to answer questions about it |
 | Click the character | it gets annoyed; three times and it goes dizzy |
@@ -93,6 +94,23 @@ own Claude Code plugins, hooks and project settings are deliberately left out of
 the chat, and `ANTHROPIC_API_KEY` is removed from its environment so it always
 uses the subscription login.
 
+### Voice
+
+Click the microphone in the chat bar, or press **Ctrl+Shift+Space** from any
+app (also in the tray menu as *Talk to Claude*). Talk, then click or press it
+again; `Esc` cancels. The text lands in the chat box so you can check it before
+sending — or switch on *Send as soon as it's written* in Settings → Voice.
+
+Speech is turned into text **on your computer** by OpenAI's Whisper model,
+running in WebAssembly: no API key, and the audio never leaves the machine. The
+model is downloaded from Hugging Face the first time you use voice (about 130 MB
+for the default size; Settings → Voice has a smaller and a more accurate one)
+and works offline after that.
+
+On a Mac, macOS asks for microphone access the first time. On Windows, if
+nothing is heard, check Settings → Privacy & security → Microphone → *Let
+desktop apps access your microphone*.
+
 ## Layout
 
 ```
@@ -105,6 +123,7 @@ src/main/                 Electron main process
 src/preload/              the IPC bridge exposed to the pages
 src/renderer/
   src/island/             the island (TypeScript + Canvas 2D, no framework)
+  src/island/voice/       microphone recording and the Whisper worker
   src/settings/           the settings window (React + Tailwind + shadcn/ui)
   src/components/ui/      shadcn components
   platform.ts             the Windows / macOS differences

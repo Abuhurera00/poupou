@@ -108,6 +108,8 @@ export const Bridge = {
   /** Checks a dropped file and reports its name back. */
   ingestFile: (path: string) => callOrThrow<DroppedFile>("ingest_file", { path }),
   pickFolder: () => call<string | null>("pick_folder"),
+  /** Asks the OS for the microphone where that is a thing (macOS). */
+  micAccess: () => call<boolean>("mic_access"),
 
   /** Tray → Pause. */
   setPaused: (paused: boolean) => call<void>("set_paused", { paused }),

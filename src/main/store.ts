@@ -18,6 +18,12 @@ export interface Settings {
   chatAccess: ChatAccess;
   /** Start with the computer (built app only). */
   autostart: boolean;
+  /** Speech model size: bigger hears better and downloads more. */
+  voiceModel: "tiny" | "base" | "small";
+  /** Spoken language as a Whisper code ("en", "ur"…); empty = detect it. */
+  voiceLanguage: string;
+  /** Send the message as soon as it is transcribed, instead of waiting for Enter. */
+  voiceAutoSend: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -30,6 +36,9 @@ export const DEFAULT_SETTINGS: Settings = {
   chatCwd: "",
   chatAccess: "ask",
   autostart: false,
+  voiceModel: "base",
+  voiceLanguage: "",
+  voiceAutoSend: false,
 };
 
 export const dataDir = () => app.getPath("userData");

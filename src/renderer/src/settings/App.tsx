@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  CircleAlert, FolderOpen, MessageCircle, MonitorSmartphone, RefreshCw, RotateCcw, ShieldCheck,
+  CircleAlert, FolderOpen, MessageCircle, Mic, MonitorSmartphone, RefreshCw, RotateCcw, ShieldCheck,
   TerminalSquare, Volume2,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -23,6 +23,30 @@ import {
 } from "@/island/core/bridge";
 import { DEFAULT_SETTINGS, type ChatAccess, type Settings } from "@/island/core/state";
 import { HooksDialog } from "./HooksDialog";
+
+/** Whisper sizes, with what each costs on first use. */
+const VOICE_MODELS = [
+  { value: "tiny", label: "Fast", hint: "about 60 MB" },
+  { value: "base", label: "Balanced", hint: "about 130 MB" },
+  { value: "small", label: "Most accurate", hint: "about 500 MB, slower" },
+];
+
+/** Radix Select has no empty value either. */
+const AUTO_LANGUAGE = "auto";
+const VOICE_LANGUAGES = [
+  { value: AUTO_LANGUAGE, label: "Detect automatically" },
+  { value: "en", label: "English" },
+  { value: "ur", label: "Urdu" },
+  { value: "hi", label: "Hindi" },
+  { value: "ar", label: "Arabic" },
+  { value: "fr", label: "French" },
+  { value: "de", label: "German" },
+  { value: "es", label: "Spanish" },
+  { value: "pt", label: "Portuguese" },
+  { value: "tr", label: "Turkish" },
+  { value: "zh", label: "Chinese" },
+  { value: "ja", label: "Japanese" },
+];
 
 /** Radix Select has no empty value, so "the CLI's own default" gets a name. */
 const DEFAULT_MODEL = "default";
@@ -250,6 +274,68 @@ export function App() {
                 {hooks.settingsPath}
               </p>
             )}
+          </CardContent>
+        </Card>
+
+        {/* ── Voice ───────────────────────────────────────────────────────── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Mic className="size-4" /> Voice
+            </CardTitle>
+            <CardDescription>
+              Click the microphone in the chat, or press{" "}
+              <kbd className="rounded border px-1 font-mono text-[11px]">Ctrl+Shift+Space</kbd>{" "}
+              anywhere, talk, then click again. Speech is turned into text on this computer — the
+              audio never leaves it. The speech model downloads once, the first time.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <Row
+              label="Speech model"
+              hint={VOICE_MODELS.find((m) => m.value === settings.voiceModel)?.hint}
+              htmlFor="voice-model"
+            >
+              <Select
+                value={settings.voiceModel}
+                onValueChange={(v) => update({ voiceModel: v as Settings["voiceModel"] })}
+              >
+                <SelectTrigger id="voice-model" className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {VOICE_MODELS.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row label="Language you speak" hint="Picking one is more reliable for short phrases." htmlFor="voice-lang">
+              <Select
+                value={settings.voiceLanguage || AUTO_LANGUAGE}
+                onValueChange={(v) => update({ voiceLanguage: v === AUTO_LANGUAGE ? "" : v })}
+              >
+                <SelectTrigger id="voice-lang" className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {VOICE_LANGUAGES.map((l) => (
+                    <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row
+              label="Send as soon as it's written"
+              hint="Off: the text lands in the box so you can check it first."
+              htmlFor="voice-send"
+            >
+              <Switch
+                id="voice-send"
+                checked={settings.voiceAutoSend}
+                onCheckedChange={(v) => update({ voiceAutoSend: v })}
+              />
+            </Row>
           </CardContent>
         </Card>
 

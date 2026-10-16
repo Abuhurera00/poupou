@@ -6,6 +6,7 @@ import { Sound } from "./core/sound";
 import { State, type Settings } from "./core/state";
 import { Island } from "./island/island";
 import { registerHookHandlers } from "./island/hooks";
+import { toggleVoice } from "./views/chat";
 
 async function main() {
   const root = document.getElementById("root");
@@ -49,6 +50,15 @@ async function main() {
   });
 
   onEvent<null>("screen-changed", () => void Bridge.reposition());
+
+  // Ctrl+Shift+Space (or the tray): open the chat and start or stop dictating.
+  onEvent<null>("voice", () => {
+    if (State.paused) return;
+    const opening = !(State.mode === "expanded" && State.view === "prompt");
+    if (opening) island.alert("prompt");
+    // Let the chat view settle in before the microphone starts.
+    window.setTimeout(toggleVoice, opening ? 260 : 0);
+  });
 
   // The settings window writes preferences; apply them here without a restart.
   onEvent<Settings>("settings-changed", (s) => {

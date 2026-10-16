@@ -1,6 +1,6 @@
 // Poupou — app wiring and the commands the pages call.
 
-import { BrowserWindow, app, dialog, ipcMain, shell } from "electron";
+import { BrowserWindow, app, dialog, globalShortcut, ipcMain, session, shell, systemPreferences } from "electron";
 import { spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { basename, delimiter, join } from "node:path";
@@ -16,6 +16,9 @@ import { hookScriptPath, loadSettings, log, saveSettings, type Settings } from "
 import { buildTray, drawIcon } from "./tray";
 
 let settings: Settings;
+
+/** Hold-free push-to-talk: press once to start dictating, again to stop. */
+export const VOICE_SHORTCUT = "CommandOrControl+Shift+Space";
 let settingsWindow: BrowserWindow | null = null;
 
 /** Dev builds are served by Vite; a built app loads the files next to it. */
@@ -158,6 +161,9 @@ const commands: Record<string, (args: Args) => unknown> = {
   open_in_vscode: (a) => openInVSCode(str(a.path) || null),
   open_settings_window: () => showSettingsWindow(),
   quit_app: () => app.quit(),
+  // macOS asks once, the first time; Windows has its own privacy switch and
+  // simply reports "no microphone" when it is off.
+  mic_access: async () => (IS_MAC ? systemPreferences.askForMediaAccess("microphone") : true),
   log_line: (a) => log(`ui  ${str(a.message)}`),
   set_paused: () => {},
 
@@ -234,6 +240,18 @@ if (!app.requestSingleInstanceLock()) {
       return handler(args ?? {});
     });
 
+    // The island may use the microphone for voice input; nothing else is granted.
+    const ours = (url: string) => url.startsWith("file:") || url.startsWith(process.env.ELECTRON_RENDERER_URL ?? "\0");
+    session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => {
+      callback(permission === "media" && ours(wc.getURL()));
+    });
+    session.defaultSession.setPermissionCheckHandler((wc, permission) => permission === "media" && ours(wc?.getURL() ?? ""));
+
+    // Talk to Claude from anywhere: opens the chat and starts listening; press again to stop.
+    if (!globalShortcut.register(VOICE_SHORTCUT, () => emit("voice", null))) {
+      log(`could not register ${VOICE_SHORTCUT} — another app already uses it`);
+    }
+
     ensureHookScript();
     startPipe();
 
@@ -243,6 +261,7 @@ if (!app.requestSingleInstanceLock()) {
     buildTray({
       open: () => emit("tray", "open"),
       chat: () => emit("tray", "chat"),
+      voice: () => emit("voice", null),
       settings: showSettingsWindow,
       pause: () => emit("tray", "pause"),
     });
@@ -251,6 +270,7 @@ if (!app.requestSingleInstanceLock()) {
   // The island has no close button and lives in the tray: closing the settings
   // window must not end the app.
   app.on("window-all-closed", () => {});
+  app.on("will-quit", () => globalShortcut.unregisterAll());
   app.on("before-quit", () => {
     chatStop();
     stopPipe();

@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Bridge, type HookPreview } from "@/island/core/bridge";
 
 interface Props {
@@ -63,8 +62,11 @@ export function HooksDialog({ mode, onClose, onApplied }: Props) {
 
   return (
     <Dialog open={mode != null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
+      {/* A column that never grows past the window: header and footer stay put,
+          the diff in between scrolls both ways. The default grid layout let a
+          long diff line widen the whole dialog until its buttons were off-screen. */}
+      <DialogContent className="flex max-h-[calc(100vh-2rem)] flex-col sm:max-w-2xl">
+        <DialogHeader className="shrink-0 pr-6">
           <DialogTitle>{installing ? "Install Claude Code hooks" : "Remove Claude Code hooks"}</DialogTitle>
           <DialogDescription>
             {installing
@@ -73,6 +75,7 @@ export function HooksDialog({ mode, onClose, onApplied }: Props) {
           </DialogDescription>
         </DialogHeader>
 
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
         {backup != null ? (
           <Alert>
             <CircleCheck />
@@ -97,8 +100,8 @@ export function HooksDialog({ mode, onClose, onApplied }: Props) {
             )}
             {preview && (
               <>
-                <ScrollArea className="h-72 rounded-md border bg-background">
-                  <pre className="p-3 font-mono text-[11px] leading-relaxed select-text">
+                <div className="min-h-32 min-w-0 flex-1 overflow-auto rounded-md border bg-background">
+                  <pre className="w-max min-w-full p-3 font-mono text-[11px] leading-relaxed select-text">
                     {preview.diff.split("\n").map((line, i) => (
                       <div
                         key={i}
@@ -114,8 +117,8 @@ export function HooksDialog({ mode, onClose, onApplied }: Props) {
                       </div>
                     ))}
                   </pre>
-                </ScrollArea>
-                <div className="space-y-1 font-mono text-[11px] text-muted-foreground">
+                </div>
+                <div className="shrink-0 space-y-1 font-mono text-[11px] text-muted-foreground">
                   <p className="break-all">File: {preview.settingsPath}</p>
                   <p className="break-all">Backup: {preview.backup}</p>
                 </div>
@@ -124,8 +127,9 @@ export function HooksDialog({ mode, onClose, onApplied }: Props) {
             {!preview && !error && <p className="text-sm text-muted-foreground">Reading your settings…</p>}
           </>
         )}
+        </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 flex-row justify-end">
           {backup != null ? (
             <Button onClick={onClose}>Done</Button>
           ) : (
