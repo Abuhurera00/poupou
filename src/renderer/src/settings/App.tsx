@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  CircleAlert, FolderOpen, MessageCircle, Mic, MonitorSmartphone, RefreshCw, RotateCcw, ShieldCheck,
+  CircleAlert, FolderOpen, MessageCircle, Mic, Power, MonitorSmartphone, RefreshCw, RotateCcw, ShieldCheck,
   TerminalSquare, Volume2,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -383,7 +383,7 @@ export function App() {
               </Select>
             </Row>
             <Row
-              label="Start with the computer"
+              label={navigator.platform.startsWith("Mac") ? "Open at login" : "Start with Windows"}
               hint={packaged ? undefined : "Available in the installed app, not under npm run dev."}
               htmlFor="autostart"
             >
@@ -400,14 +400,22 @@ export function App() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="primary">Main display</SelectItem>
-                  <SelectItem value="cursor">Display under the pointer</SelectItem>
+                  <SelectItem value="cursor">Any display — follows the pointer</SelectItem>
+                  <SelectItem value="primary">Main display only</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
           </CardContent>
         </Card>
 
+        <div className="flex items-center justify-between px-1 pb-2">
+          <p className="text-xs text-muted-foreground">
+            Closing this window keeps Poupou running at the top of the screen.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => void Bridge.quit()}>
+            <Power /> Quit Poupou
+          </Button>
+        </div>
       </main>
 
       <HooksDialog

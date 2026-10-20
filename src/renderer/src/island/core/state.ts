@@ -28,6 +28,8 @@ export interface ApprovalInfo {
   command: string;
   /** True when the island's own chat is asking, not a Claude Code session. */
   fromChat: boolean;
+  /** Tool name + input, to recognise that very tool call running later. */
+  callKey: string;
 }
 
 export interface ChatMessage {
@@ -81,7 +83,7 @@ export const DEFAULT_SETTINGS: Settings = {
   soundEnabled: true,
   soundVolume: 0.12,
   autoCloseInterval: 15,
-  screen: "primary",
+  screen: "cursor",
   hooksInstalled: false,
   model: "",
   chatCwd: "",

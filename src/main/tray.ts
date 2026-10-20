@@ -9,6 +9,7 @@ export interface TrayActions {
   voice(): void;
   settings(): void;
   pause(): void;
+  autostart: { available: boolean; get(): boolean; set(on: boolean): void };
 }
 
 let tray: Tray | null = null;
@@ -100,6 +101,13 @@ export function buildTray(actions: TrayActions) {
             actions.pause();
             refresh();
           },
+        },
+        {
+          label: process.platform === "darwin" ? "Open at login" : "Start with Windows",
+          type: "checkbox",
+          enabled: actions.autostart.available,
+          checked: actions.autostart.get(),
+          click: (item) => actions.autostart.set(item.checked),
         },
         { type: "separator" },
         { label: "Quit Poupou", click: () => app.quit() },

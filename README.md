@@ -40,9 +40,17 @@ on a Mac yet**; if the island does not sit right against the top of the screen
 or over the menu bar, that is the place to look (`src/main/island.ts`).
 
 There is no taskbar or Dock window. The island is at the top of the screen and
-there is an icon in the notification area / menu bar (Open, Ask Claude,
-Settings…, Pause, Quit). **Settings → Start with the computer** makes it launch
-at login.
+there is an icon in the notification area / menu bar (Open, Ask Claude, Talk to
+Claude, Settings…, Start with Windows, Pause, Quit).
+
+- **Start with Windows** (Open at login on a Mac): tick it in the tray menu or
+  in Settings → Island.
+- **Quit**: the ⏻ button in the island's top-right corner, *Quit* in the
+  island's settings card, the button at the bottom of the Settings window, or
+  the tray menu.
+- **More than one screen**: the island follows the pointer — when it is hidden,
+  it waits at the top-centre of whichever screen the pointer is on. Settings →
+  Island → Display can pin it to the main display instead.
 
 To update: `git pull`, `npm install`, `npm run dist`, run the new installer.
 To remove: uninstall "Poupou" from Windows Settings → Apps, or delete it from
@@ -61,7 +69,7 @@ Quit the installed app first — only one Poupou runs at a time.
 
 | What you do | What happens |
 |---|---|
-| Move the pointer to the very top-centre of the screen | the island peeks out |
+| Move the pointer to the very top-centre of any screen | the island peeks out |
 | Click the small island | it opens |
 | Click the chat tab, type, Enter | Claude answers, streamed, on your subscription |
 | `Ctrl+Shift+Space` anywhere, talk, press it again | your words are typed into the chat |
@@ -79,7 +87,8 @@ show up on the island step by step, and permission requests can be answered from
 it. Sessions that were already open need a restart to pick the hooks up.
 
 If Poupou is closed, the hook exits immediately — Claude Code is never blocked.
-If nobody answers a permission card, Claude Code asks in the terminal as usual.
+Claude Code also asks in the terminal at the same time; answer in either place.
+When you answer in the terminal, the card on the island goes away by itself.
 
 ### Chat
 

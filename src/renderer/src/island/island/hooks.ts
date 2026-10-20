@@ -24,6 +24,41 @@ interface HookPayload {
   tool_input?: Record<string, unknown>;
 }
 
+/** Identifies one tool call across hook events: same tool, same input. */
+const callKey = (payload: HookPayload) =>
+  `${payload.tool_name ?? ""}|${JSON.stringify(payload.tool_input ?? {})}`;
+
+/**
+ * Claude Code shows its own permission prompt in the terminal while the island
+ * shows the card, and answering in the terminal does not stop our hook. So
+ * "answered elsewhere" has to be read from what happens next in that session:
+ *   * the very tool call ran (PostToolUse / PostToolUseFailure, same input);
+ *   * the turn ended or a new one began (Stop, StopFailure, UserPromptSubmit,
+ *     SessionEnd);
+ *   * the session asks for another permission — Claude Code asks one at a time,
+ *     so the previous one must be settled.
+ */
+function answeredElsewhere(payload: HookPayload): boolean {
+  const pending = State.pendingApproval;
+  if (!pending || pending.fromChat) return false;
+  const sid = payload.session_id ?? "";
+  if (sid && pending.sessionId && sid !== pending.sessionId) return false;
+  switch (payload.hook_event_name) {
+    case "PostToolUse":
+    case "PostToolUseFailure":
+      return callKey(payload) === pending.callKey;
+    case "Stop":
+    case "StopFailure":
+    case "UserPromptSubmit":
+    case "SessionEnd":
+      return true;
+    case "PermissionRequest":
+      return payload.request_id !== pending.requestId && !payload.from_chat;
+    default:
+      return false;
+  }
+}
+
 function lastPathComponent(p: string): string {
   const cleaned = p.replace(/[\\/]+$/, "");
   const idx = Math.max(cleaned.lastIndexOf("\\"), cleaned.lastIndexOf("/"));
@@ -145,6 +180,16 @@ function handleHook(island: Island, payload: HookPayload) {
     return;
   }
 
+  // Answered in the terminal: the card is stale. Release our relay (Claude Code
+  // no longer reads its answer) and take the card down before anything else.
+  if (answeredElsewhere(payload)) {
+    const stale = State.pendingApproval;
+    if (stale?.requestId) void Bridge.approvalDecline(stale.requestId);
+    clearApproval(island);
+    // Nobody is waiting on the island any more: fold it away.
+    if (State.mode === "expanded" && State.view !== "prompt") island.collapse();
+  }
+
   const name = payload.hook_event_name ?? "";
   const cwd = payload.cwd ?? "";
   const raw = lastPathComponent(cwd);
@@ -262,6 +307,7 @@ function handleHook(island: Island, payload: HookPayload) {
         tool,
         command: approvalTarget(tool, input),
         fromChat,
+        callKey: callKey(payload),
       };
       // The short ack window closes in 1.5 s; everything below this
       // line is synchronous, so the card really is up by the time it lands.

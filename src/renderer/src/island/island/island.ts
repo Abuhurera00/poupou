@@ -161,6 +161,11 @@ export class Island {
       },
       openSettingsWindow: () => void Bridge.openSettingsWindow(),
       blip: () => Sound.play("blip"),
+      quit: () => {
+        Sound.play("close");
+        // A beat for the sound, then the whole app goes.
+        window.setTimeout(() => void Bridge.quit(), 180);
+      },
     };
 
     this.wakeStrip = h("div", { id: "wake-strip" });
@@ -326,6 +331,12 @@ export class Island {
 
   reveal() {
     this.fsm.reveal();
+  }
+
+  /** The pointer reached the wake strip at the top of the screen. */
+  wake() {
+    Sound.resume();
+    if (State.mode === "hidden") this.fsm.mouseEntered();
   }
 
   /** An alert stopped waiting for an answer: let the island auto-close again. */

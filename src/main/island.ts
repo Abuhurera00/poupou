@@ -23,7 +23,17 @@ const POLL_MS = 16;
 
 let win: BrowserWindow | null = null;
 let collapsed = false;
-let screenPref: "primary" | "cursor" = "primary";
+let screenPref: "primary" | "cursor" = "cursor";
+/** The display the island is on right now. */
+let currentDisplayId: number | null = null;
+/**
+ * Slow poll while the island is hidden: keeps the wake strip on the pointer's
+ * display, and makes only the strip itself take the mouse (see idleTick).
+ */
+let idle: NodeJS.Timeout | null = null;
+const IDLE_MS = 100;
+/** Pointer was in the wake strip on the last idle tick. */
+let wasInStrip = false;
 /** The island shape in window coordinates, pushed by the front end. */
 let rect = { x: 0, y: 0, w: 0, h: 0 };
 let ignoring = false;
@@ -37,23 +47,32 @@ export function emit(name: string, payload: unknown) {
   if (win && !win.isDestroyed()) win.webContents.send("poupou:event", name, payload);
 }
 
-function targetDisplay() {
-  if (screenPref === "cursor") return screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  return screen.getPrimaryDisplay();
+/**
+ * Which display the island belongs on. Following the pointer, a hidden island
+ * goes wherever the pointer is; an open one stays put so it never jumps out
+ * from under the user — unless its display has been unplugged.
+ */
+function targetDisplay(): Electron.Display {
+  if (screenPref !== "cursor") return screen.getPrimaryDisplay();
+  const current = screen.getAllDisplays().find((d) => d.id === currentDisplayId);
+  if (current && !collapsed) return current;
+  return screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
 }
 
 /** Places and sizes the window. Collapsed picks the wake strip instead of the panel. */
 function applyGeometry() {
   if (!win || win.isDestroyed()) return;
-  const { bounds } = targetDisplay();
+  const display = targetDisplay();
+  const moved = display.id !== currentDisplayId;
+  currentDisplayId = display.id;
+  const { bounds } = display;
   const width = collapsed ? STRIP_W : PANEL_W;
   const height = collapsed ? STRIP_H : PANEL_H;
-  win.setBounds({
-    x: Math.round(bounds.x + (bounds.width - width) / 2),
-    y: bounds.y,
-    width,
-    height,
-  });
+  const target = { x: Math.round(bounds.x + (bounds.width - width) / 2), y: bounds.y, width, height };
+  win.setBounds(target);
+  // Crossing to a display with another scale factor can resize the window on
+  // the way; setting it again lands it at the right size.
+  if (moved) win.setBounds(target);
   win.setAlwaysOnTop(true, "screen-saver");
 }
 
@@ -84,6 +103,40 @@ function tick() {
   setIgnoring(!onIsland);
 
   emit("cursor", { x, y });
+}
+
+/**
+ * While hidden. Windows will not make a window shorter than about 39 px, so the
+ * "6 px" wake strip is really a 240 × 39 window — and one that takes the mouse
+ * would swallow clicks meant for the browser tabs or title bar underneath. So the
+ * window stays click-through, and only takes the mouse while the pointer is in
+ * its top 6 px. That is also what lets a file dragged to the top edge wake it.
+ */
+function idleTick() {
+  if (!win || win.isDestroyed() || !collapsed) return;
+  const point = screen.getCursorScreenPoint();
+  if (screenPref === "cursor" && screen.getAllDisplays().length > 1) {
+    const under = screen.getDisplayNearestPoint(point);
+    if (under.id !== currentDisplayId) applyGeometry();
+  }
+  const b = win.getBounds();
+  const stripX = b.x + (b.width - STRIP_W) / 2;
+  const inStrip = point.x >= stripX && point.x < stripX + STRIP_W && point.y >= b.y && point.y < b.y + STRIP_H;
+  setIgnoring(!inStrip);
+  // Said outright rather than left to a DOM mouseenter: that one needs the
+  // pointer to move after the window starts taking the mouse, and a pointer
+  // flung to the top edge is often already still by then.
+  if (inStrip && !wasInStrip) emit("wake", null);
+  wasInStrip = inStrip;
+}
+
+function setIdlePolling(on: boolean) {
+  if (on && !idle) {
+    idle = setInterval(idleTick, IDLE_MS);
+  } else if (!on && idle) {
+    clearInterval(idle);
+    idle = null;
+  }
 }
 
 function setPolling(on: boolean) {
@@ -140,6 +193,7 @@ export function createIslandWindow(pref: "primary" | "cursor"): BrowserWindow {
   });
   win.on("closed", () => {
     setPolling(false);
+    setIdlePolling(false);
     win = null;
   });
 
@@ -163,10 +217,13 @@ export function createIslandWindow(pref: "primary" | "cursor"): BrowserWindow {
 export function setCollapsed(value: boolean) {
   collapsed = value;
   applyGeometry();
-  // The wake strip must always take the mouse, and a resize invalidates the flag.
-  ignoring = true;
-  setIgnoring(false);
+  // A resize invalidates the flag: force it to be applied again.
+  ignoring = !value;
+  setIgnoring(value);
   setPolling(!value);
+  setIdlePolling(value);
+  wasInStrip = false;
+  if (value) idleTick();
 }
 
 export function setIslandRect(x: number, y: number, w: number, h: number) {

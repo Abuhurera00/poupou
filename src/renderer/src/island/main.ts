@@ -50,6 +50,7 @@ async function main() {
   });
 
   onEvent<null>("screen-changed", () => void Bridge.reposition());
+  onEvent<null>("wake", () => island.wake());
 
   // Ctrl+Shift+Space (or the tray): open the chat and start or stop dictating.
   onEvent<null>("voice", () => {

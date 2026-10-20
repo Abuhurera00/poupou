@@ -24,13 +24,15 @@ export interface Settings {
   voiceLanguage: string;
   /** Send the message as soon as it is transcribed, instead of waiting for Enter. */
   voiceAutoSend: boolean;
+  /** Bumped when a default changes in a way old settings files should pick up. */
+  settingsVersion: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   soundEnabled: true,
   soundVolume: 0.12,
   autoCloseInterval: 15,
-  screen: "primary",
+  screen: "cursor",
   hooksInstalled: false,
   model: "",
   chatCwd: "",
@@ -39,6 +41,7 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceModel: "base",
   voiceLanguage: "",
   voiceAutoSend: false,
+  settingsVersion: 2,
 };
 
 export const dataDir = () => app.getPath("userData");
@@ -52,7 +55,13 @@ const logFile = () => join(dataDir(), "poupou.log");
 export function loadSettings(): Settings {
   try {
     const parsed: unknown = JSON.parse(readFileSync(settingsFile(), "utf8"));
-    if (parsed && typeof parsed === "object") return { ...DEFAULT_SETTINGS, ...(parsed as Partial<Settings>) };
+    if (parsed && typeof parsed === "object") {
+      const saved = parsed as Partial<Settings>;
+      // Before version 2 "primary" was the default nobody picked; with a
+      // second monitor it hid the island from it. Follow the pointer instead.
+      if ((saved.settingsVersion ?? 1) < 2 && saved.screen === "primary") saved.screen = "cursor";
+      return { ...DEFAULT_SETTINGS, ...saved, settingsVersion: DEFAULT_SETTINGS.settingsVersion };
+    }
   } catch {
     // first launch, or a file we cannot read: defaults are fine
   }

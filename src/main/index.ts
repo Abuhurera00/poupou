@@ -125,6 +125,14 @@ function applyAutostart(on: boolean) {
   app.setLoginItemSettings({ openAtLogin: on });
 }
 
+/** Turned on or off from the tray: apply, remember, and tell both windows. */
+function setAutostart(on: boolean) {
+  applyAutostart(on);
+  settings = { ...settings, autostart: on };
+  saveSettings(settings);
+  broadcast("settings-changed", settings);
+}
+
 // ── Commands ──────────────────────────────────────────────────────────────────
 
 type Args = Record<string, unknown>;
@@ -229,6 +237,9 @@ if (!app.requestSingleInstanceLock()) {
     // The island and the menu-bar icon are the whole app: no Dock icon on a Mac.
     if (IS_MAC) app.dock?.hide();
     settings = loadSettings();
+    // Whatever Windows / macOS has registered wins over what we remembered.
+    if (app.isPackaged) settings.autostart = app.getLoginItemSettings().openAtLogin;
+    saveSettings(settings);
     log(`--- Poupou ${app.getVersion()} started ---`);
 
     ipcMain.handle("poupou:invoke", async (event, cmd: string, args: Args) => {
@@ -264,6 +275,11 @@ if (!app.requestSingleInstanceLock()) {
       voice: () => emit("voice", null),
       settings: showSettingsWindow,
       pause: () => emit("tray", "pause"),
+      autostart: {
+        available: app.isPackaged,
+        get: () => settings.autostart,
+        set: setAutostart,
+      },
     });
   });
 
