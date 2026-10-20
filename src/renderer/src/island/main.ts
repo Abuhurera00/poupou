@@ -69,12 +69,15 @@ async function main() {
 
   registerHookHandlers(island);
 
-  // The chat needs the CLI; knowing early lets the field say so instead of failing.
-  void Bridge.claudeStatus().then((status) => {
-    if (!status) return;
-    State.claudeReady = status.found && status.loggedIn;
-    State.notify();
-  });
+  // Knowing early lets the chat field say what's missing instead of failing.
+  const checkReady = () =>
+    void Bridge.chatReady().then((status) => {
+      if (!status) return;
+      State.claudeReady = status.ready;
+      State.notify();
+    });
+  checkReady();
+  onEvent<null>("chat-ready-changed", checkReady);
 
   island.launch();
 

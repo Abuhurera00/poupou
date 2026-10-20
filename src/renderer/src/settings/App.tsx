@@ -22,6 +22,7 @@ import {
   Bridge, onEvent, type ClaudeStatus, type HookStatus,
 } from "@/island/core/bridge";
 import { DEFAULT_SETTINGS, type ChatAccess, type Settings } from "@/island/core/state";
+import { ApiKeyPanel } from "./ApiKeyPanel";
 import { HooksDialog } from "./HooksDialog";
 
 /** Whisper sizes, with what each costs on first use. */
@@ -51,7 +52,7 @@ const VOICE_LANGUAGES = [
 /** Radix Select has no empty value, so "the CLI's own default" gets a name. */
 const DEFAULT_MODEL = "default";
 const MODELS = [
-  { value: DEFAULT_MODEL, label: "Claude Code default" },
+  { value: DEFAULT_MODEL, label: "Default" },
   { value: "opus", label: "Opus" },
   { value: "sonnet", label: "Sonnet" },
   { value: "haiku", label: "Haiku" },
@@ -116,6 +117,7 @@ export function App() {
   };
 
   const ready = claude?.found === true && claude.loggedIn;
+  const usingKey = settings.authMode === "apikey";
 
   return (
     <ScrollArea className="h-screen">
@@ -137,16 +139,38 @@ export function App() {
               <MessageCircle className="size-4" /> Chat
             </CardTitle>
             <CardDescription>
-              Answers come from the Claude Code CLI on this PC, using the subscription it is signed
-              in with. No API key.
+              {usingKey
+                ? "Answers are billed to your Anthropic API key."
+                : "Answers come from Claude Code on this computer, using the Claude subscription it is signed in with."}
             </CardDescription>
-            <CardAction>
-              <Button variant="ghost" size="icon-sm" onClick={refreshClaude} disabled={checking} title="Check again">
-                <RefreshCw className={checking ? "animate-spin" : ""} />
-              </Button>
-            </CardAction>
+            {!usingKey && (
+              <CardAction>
+                <Button variant="ghost" size="icon-sm" onClick={refreshClaude} disabled={checking} title="Check again">
+                  <RefreshCw className={checking ? "animate-spin" : ""} />
+                </Button>
+              </CardAction>
+            )}
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
+            <Row label="Connect with" htmlFor="auth-mode">
+              <Select
+                value={settings.authMode}
+                onValueChange={(v) => update({ authMode: v as Settings["authMode"] })}
+              >
+                <SelectTrigger id="auth-mode" className="w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="subscription">Claude subscription (Claude Code)</SelectItem>
+                  <SelectItem value="apikey">Anthropic API key</SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+
+            {usingKey ? (
+              <ApiKeyPanel />
+            ) : (
+            <>
             <div className="flex flex-wrap items-center gap-2">
               {claude == null ? (
                 <Badge variant="secondary">Checking…</Badge>
@@ -170,9 +194,11 @@ export function App() {
                 <AlertDescription>
                   {claude.found
                     ? "Open a terminal, run `claude`, and use /login. Then press the refresh button above."
-                    : "Install Claude Code, run `claude` once to sign in, then press the refresh button above."}
+                    : "Install Claude Code, run `claude` once to sign in, then press the refresh button above — or switch to an Anthropic API key."}
                 </AlertDescription>
               </Alert>
+            )}
+            </>
             )}
 
             <Separator />

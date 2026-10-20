@@ -105,6 +105,12 @@ export const Bridge = {
   chatReset: () => call<void>("chat_reset"),
   /** Is the `claude` CLI there, and is it logged in? */
   claudeStatus: () => call<ClaudeStatus>("claude_status"),
+  /** Can the chat answer with the current sign-in method? */
+  chatReady: () => call<{ ready: boolean; mode: "subscription" | "apikey" }>("chat_ready"),
+  apiKeyStatus: () => call<ApiKeyStatus>("api_key_status"),
+  /** Checks the key with Anthropic, then stores it encrypted. Never read back. */
+  apiKeySet: (key: string) => callOrThrow<ApiKeyStatus>("api_key_set", { key }),
+  apiKeyClear: () => call<ApiKeyStatus>("api_key_clear"),
   /** Checks a dropped file and reports its name back. */
   ingestFile: (path: string) => callOrThrow<DroppedFile>("ingest_file", { path }),
   pickFolder: () => call<string | null>("pick_folder"),
@@ -122,6 +128,14 @@ export interface ChatDelta {
   text?: string;
   /** A tool the chat just started, e.g. "Read · notes.md". */
   step?: string;
+}
+
+export interface ApiKeyStatus {
+  present: boolean;
+  /** Last four characters, e.g. "…a1B2". */
+  hint: string | null;
+  /** Which way an API-key chat runs: through Claude Code ("cli") or straight to the API. */
+  engine?: "cli" | "api";
 }
 
 export interface ClaudeStatus {

@@ -1,0 +1,59 @@
+# Builds the Windows installer and the macOS disk images on GitHub's own
+# machines and attaches them to a GitHub release.
+#
+# To publish a new version: bump "version" in package.json, commit, then
+#   git tag v0.2.0 && git push origin v0.2.0
+# The README's download links always point at the latest release.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build, e.g. v0.2.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            files: dist/Poupou-Windows-Setup.exe
+          - os: macos-latest
+            files: dist/Poupou-macOS-*.dmg
+    runs-on: ${{ matrix.os }}
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Unsigned builds: never go looking for a signing certificate.
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the installer
+        run: npm run dist -- --publish never
+
+      # Both jobs race to create the release; whichever loses just uploads.
+      - name: Attach to the release
+        shell: bash
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "Poupou ${TAG#v}" --notes "Download the installer for your computer below. See the README for first-launch steps." || true
+          gh release upload "$TAG" ${{ matrix.files }} --clobber

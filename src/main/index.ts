@@ -4,7 +4,9 @@ import { BrowserWindow, app, dialog, globalShortcut, ipcMain, session, shell, sy
 import { spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { basename, delimiter, join } from "node:path";
-import { chatReset, chatSend, chatStop, claudeStatus, type ChatContext } from "./claude";
+import { apiChatReset, apiChatSend, apiChatStop } from "./api-chat";
+import { apiKeyStatus, clearApiKey, getApiKey, setApiKey } from "./apikey";
+import { chatReset, chatSend, chatStop, claudeStatus, findClaude, type ChatContext } from "./claude";
 import { ensureHookScript, hooksApply, hooksPreview, hooksStatus } from "./hooks";
 import {
   createIslandWindow, emit, focusIsland, islandWindow, reposition, setCollapsed, setIslandRect,
@@ -119,6 +121,33 @@ function openInVSCode(path: string | null): boolean {
   return false;
 }
 
+// ── Chat routing ──────────────────────────────────────────────────────────────
+
+/**
+ * Where a message goes. Subscription: the Claude Code CLI on its own login.
+ * API key: the CLI on that key when Claude Code is installed (so it can still
+ * read files and run commands), otherwise the API directly (chat + web search).
+ */
+function sendChat(query: string, context: ChatContext | null): Promise<{ text: string }> {
+  if (settings.authMode !== "apikey") return chatSend(settings, query, context);
+  const key = getApiKey();
+  if (!key) return Promise.reject(new Error("Add your Anthropic API key in Settings first."));
+  if (findClaude()) return chatSend(settings, query, context, key);
+  return apiChatSend(settings, key, query, context);
+}
+
+function resetChats() {
+  chatReset();
+  apiChatReset();
+}
+
+/** Whether the chat can answer right now, for the island's input field. */
+async function chatReady(): Promise<{ ready: boolean; mode: Settings["authMode"] }> {
+  if (settings.authMode === "apikey") return { ready: getApiKey() != null, mode: "apikey" };
+  const status = await claudeStatus();
+  return { ready: status.found && status.loggedIn, mode: "subscription" };
+}
+
 /** Start with the computer. Only a built app can register itself; `npm run dev` cannot. */
 function applyAutostart(on: boolean) {
   if (!app.isPackaged) return;
@@ -147,13 +176,16 @@ const commands: Record<string, (args: Args) => unknown> = {
 
   save_settings: (a) => {
     const next = { ...settings, ...(a.settings as Partial<Settings>) };
-    const workspaceChanged = next.chatCwd !== settings.chatCwd;
+    const workspaceChanged = next.chatCwd !== settings.chatCwd || next.authMode !== settings.authMode;
     if (next.autostart !== settings.autostart) applyAutostart(next.autostart);
     settings = next;
     saveSettings(settings);
     setScreenPref(settings.screen);
     // A conversation belongs to the folder it started in.
-    if (workspaceChanged) chatReset();
+    if (workspaceChanged) {
+      resetChats();
+      broadcast("chat-ready-changed", null);
+    }
     broadcast("settings-changed", settings);
   },
 
@@ -191,10 +223,26 @@ const commands: Record<string, (args: Args) => unknown> = {
   approval_decline: (a) => decline(str(a.requestId)),
 
   // Chat and files
-  chat_send: (a) => chatSend(settings, str(a.query), (a.context as ChatContext | null) ?? null),
-  chat_stop: () => chatStop(),
-  chat_reset: () => chatReset(),
+  chat_send: (a) => sendChat(str(a.query), (a.context as ChatContext | null) ?? null),
+  chat_stop: () => {
+    chatStop();
+    apiChatStop();
+  },
+  chat_reset: () => resetChats(),
   claude_status: () => claudeStatus(),
+  chat_ready: () => chatReady(),
+  api_key_status: () => ({ ...apiKeyStatus(), engine: findClaude() ? "cli" : "api" }),
+  api_key_set: async (a) => {
+    const status = await setApiKey(str(a.key));
+    broadcast("chat-ready-changed", null);
+    return status;
+  },
+  api_key_clear: () => {
+    const status = clearApiKey();
+    resetChats();
+    broadcast("chat-ready-changed", null);
+    return status;
+  },
   ingest_file: (a) => {
     const path = str(a.path);
     let size: number;
@@ -289,6 +337,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on("will-quit", () => globalShortcut.unregisterAll());
   app.on("before-quit", () => {
     chatStop();
+    apiChatStop();
     stopPipe();
   });
 }

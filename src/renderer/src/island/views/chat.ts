@@ -361,7 +361,7 @@ export function buildPrompt(onHeightChange: () => void): ViewHost {
             : voice === "transcribing"
               ? "Writing it down…"
               : State.claudeReady === false
-          ? "Claude CLI not signed in — see Settings…"
+          ? "Not connected to Claude — open Settings…"
           : history.length === 0 ? "Ask me anything…" : "Continue…";
       input.disabled = sending || voice !== "idle";
       input.classList.toggle("note", voiceNote != null);

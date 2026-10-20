@@ -2,42 +2,48 @@
 
 A notch companion for Windows and macOS. Poupou, a small ghost with an antenna,
 lives at the top-centre of your screen, follows your Claude Code sessions, lets
-you approve permission requests from there, and chats with Claude **through the
-Claude subscription your `claude` CLI is already signed in with** — no API key.
+you approve permission requests from there, and chats with Claude — through the
+Claude subscription your `claude` CLI is signed in with, or an Anthropic API
+key.
 
-## Install it as an app
+## Download
 
-You need [Node 20+](https://nodejs.org) and Claude Code installed and signed in
-(run `claude`, then `/login`). Then:
+| Your computer | Installer |
+|---|---|
+| **Windows** 10 / 11 | [Poupou-Windows-Setup.exe](https://github.com/Abuhurera00/poupou/releases/latest/download/Poupou-Windows-Setup.exe) |
+| **Mac** with Apple Silicon (M1 and later) | [Poupou-macOS-arm64.dmg](https://github.com/Abuhurera00/poupou/releases/latest/download/Poupou-macOS-arm64.dmg) |
+| **Mac** with an Intel processor | [Poupou-macOS-x64.dmg](https://github.com/Abuhurera00/poupou/releases/latest/download/Poupou-macOS-x64.dmg) |
 
-```
-git clone https://github.com/Abuhurera00/poupou.git
-cd poupou
-npm install
-npm run dist
-```
+All versions: [Releases](https://github.com/Abuhurera00/poupou/releases).
 
-`npm run dist` builds the installer for the computer you run it on and puts it
-in `dist/`.
+**Windows** — run the installer. It installs for your account only (no admin
+prompt), adds Poupou to the Start menu and the desktop, and starts it. After
+that, press the Windows key, type `Poupou`, Enter. The installer is not
+signed, so Windows may show "Windows protected your PC": click **More info →
+Run anyway**.
 
-**Windows** — run `dist/Poupou Setup 0.1.0.exe`. It installs for your account
-only (no admin prompt), adds Poupou to the Start menu and the desktop, and
-starts it. From then on, press the Windows key, type `Poupou`, Enter. Windows
-may show a "Windows protected your PC" box because the installer is not signed:
-**More info → Run anyway**.
-
-**macOS** — open `dist/Poupou-0.1.0.dmg` (`-arm64` on Apple Silicon) and drag
-Poupou to Applications. The app is not signed by Apple, so the first launch is
-refused; allow it once with
+**macOS** — open the `.dmg` and drag Poupou to Applications. The app is not
+signed by Apple, so macOS refuses the first launch; allow it once in Terminal:
 
 ```
 xattr -cr /Applications/Poupou.app
 ```
 
-and open it from Spotlight or Launchpad. The Mac build has to be made on a Mac —
-a Windows PC cannot produce it. The Mac side is written but has **not been run
-on a Mac yet**; if the island does not sit right against the top of the screen
-or over the menu bar, that is the place to look (`src/main/island.ts`).
+then open Poupou from Spotlight or Launchpad. The Mac version is built
+automatically but has **not been tried on a real Mac yet** — if the island sits
+wrong at the top of the screen, `src/main/island.ts` is the place to look.
+
+**To chat**, Poupou needs one of:
+
+- **A Claude subscription** — [Claude Code](https://claude.com/claude-code)
+  installed and signed in (run `claude`, then `/login`). This is the default.
+- **An Anthropic API key** — Settings → Chat → *Connect with: Anthropic API
+  key*, paste a key from [console.anthropic.com](https://console.anthropic.com/settings/keys).
+  With Claude Code installed the chat can still read files and run commands
+  (with your OK); without it, the chat answers and searches the web.
+
+Following Claude Code sessions and approving their permission requests from the
+island needs Claude Code either way (Settings → Install hooks).
 
 There is no taskbar or Dock window. The island is at the top of the screen and
 there is an icon in the notification area / menu bar (Open, Ask Claude, Talk to
@@ -52,9 +58,27 @@ Claude, Settings…, Start with Windows, Pause, Quit).
   it waits at the top-centre of whichever screen the pointer is on. Settings →
   Island → Display can pin it to the main display instead.
 
-To update: `git pull`, `npm install`, `npm run dist`, run the new installer.
-To remove: uninstall "Poupou" from Windows Settings → Apps, or delete it from
+To update: download and run the newest installer. To remove: uninstall "Poupou" from Windows Settings → Apps, or delete it from
 Applications on a Mac.
+
+## Build it yourself
+
+You need [Node 20+](https://nodejs.org).
+
+```
+git clone https://github.com/Abuhurera00/poupou.git
+cd poupou
+npm install
+npm run dist
+```
+
+The installer for the computer you run it on lands in `dist/`. A Mac build has
+to be made on a Mac.
+
+**Publishing a release:** bump `version` in `package.json`, commit, then
+`git tag vX.Y.Z && git push origin vX.Y.Z`. The *Release* GitHub Action builds
+the Windows and both Mac installers and attaches them to the release, which is
+where the download links above point.
 
 ## Run it from the code
 
@@ -92,7 +116,11 @@ When you answer in the terminal, the card on the island goes away by itself.
 
 ### Chat
 
-Each message is one `claude -p` run; the conversation continues with `--resume`.
+With Claude Code installed, each message is one `claude -p` run and the
+conversation continues with `--resume` — on your subscription login, or billed to
+your API key if you chose one (Settings → Chat → Connect with). With an API key
+and no Claude Code, messages go to the Anthropic API directly (Claude Opus 5.5
+by default), with web search but no access to your files.
 
 - **Ask me first** (default): reading and searching are free; anything else
   (shell commands, file edits) shows an Allow / Deny card on the island.
@@ -100,8 +128,9 @@ Each message is one `claude -p` run; the conversation continues with `--resume`.
 
 The chat works in your home folder unless you pick another one in Settings. Your
 own Claude Code plugins, hooks and project settings are deliberately left out of
-the chat, and `ANTHROPIC_API_KEY` is removed from its environment so it always
-uses the subscription login.
+the chat. In subscription mode any `ANTHROPIC_API_KEY` in your environment is
+ignored, so it always uses the subscription. A saved API key is encrypted by the
+operating system (DPAPI on Windows, Keychain on macOS) and never shown again.
 
 ### Voice
 

@@ -16,6 +16,8 @@ export interface Settings {
   model: string;
   chatCwd: string;
   chatAccess: ChatAccess;
+  /** How the chat reaches Claude: the Claude Code login, or an Anthropic API key. */
+  authMode: "subscription" | "apikey";
   /** Start with the computer (built app only). */
   autostart: boolean;
   /** Speech model size: bigger hears better and downloads more. */
@@ -37,6 +39,7 @@ export const DEFAULT_SETTINGS: Settings = {
   model: "",
   chatCwd: "",
   chatAccess: "ask",
+  authMode: "subscription",
   autostart: false,
   voiceModel: "base",
   voiceLanguage: "",

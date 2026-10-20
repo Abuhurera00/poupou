@@ -472,7 +472,7 @@ function buildSettings(actions: ViewActions): ViewHost {
       clear(apiBadge);
       apiBadge.append(
         dot(State.claudeReady ? "#22C55E" : "#F4505E", 6),
-        h("span", { text: "Subscription" }),
+        h("span", { text: State.settings.authMode === "apikey" ? "API key" : "Subscription" }),
       );
     },
   };

@@ -191,14 +191,20 @@ function workingDir(settings: Settings): string {
   return homedir();
 }
 
+/**
+ * One turn through the Claude Code CLI. With `apiKey` the CLI bills that key
+ * instead of the subscription it is signed in with — the tools and the
+ * approval cards work the same either way.
+ */
 export function chatSend(
   settings: Settings,
   query: string,
   context: ChatContext | null,
+  apiKey: string | null = null,
 ): Promise<{ text: string }> {
   const claude = findClaude();
   if (!claude) {
-    return Promise.reject(new Error("Claude Code CLI not found. Install it, run `claude` once to sign in, then try again."));
+    return Promise.reject(new Error("Claude Code isn't installed. Install it and sign in, or use an Anthropic API key in Settings."));
   }
   if (running) return Promise.reject(new Error("Still answering the previous message."));
 
@@ -208,7 +214,7 @@ export function chatSend(
   return new Promise((resolve, reject) => {
     const child = launch(claude, buildArgs(settings), {
       cwd: workingDir(settings),
-      env: childEnv({ POUPOU_CHAT: "1" }),
+      env: childEnv(apiKey ? { POUPOU_CHAT: "1", ANTHROPIC_API_KEY: apiKey } : { POUPOU_CHAT: "1" }),
     });
     running = child;
     stopped = false;
@@ -282,6 +288,7 @@ export function chatSend(
       log(`chat failed: ${why}`);
       // A session the CLI no longer has must not poison every later turn.
       if (/no conversation found|session.*not found/i.test(why)) sessionId = null;
+      if (apiKey && /invalid api key/i.test(why)) return reject(new Error("Your API key was rejected — update it in Settings."));
       reject(new Error(why));
     });
 
